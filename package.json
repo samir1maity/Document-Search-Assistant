@@ -11,8 +11,8 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@llamaindex/llama-cloud": "^2.14.0",
     "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "unstructured-client": "^0.31.0"
+    "express": "^5.2.1"
   }
 }

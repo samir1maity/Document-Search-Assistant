@@ -1,7 +1,6 @@
 const config = {
-    unstructured : {
-        key : process.env.UNSTRUCTURED_API_KEY,
-        url : process.env.UNSTRUCTURED_API_URL
+    llamaCloud: {
+        apiKey: process.env.LLAMA_CLOUD_API_KEY
     }
 }
 
