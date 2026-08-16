@@ -12,10 +12,12 @@ export const handleDocument = catchAsync(async (req, res) => {
 
    const flatItems = chunkingService.handlePdfData({ data })
 
-   const chunks = chunkingService.handleChunking({ flatItems })
+   const parentChunks = chunkingService.handleChunking({ flatItems })
+
+   const childChunks = chunkingService.buildChildChunks({ parentChunks })
 
    res.status(200).json({
-      data: chunks,
+      data: childChunks,
       success: true
    })
 })

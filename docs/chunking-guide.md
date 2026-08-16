@@ -148,3 +148,33 @@ Before moving on to hybrid search/reranking (Phase 2), confirm the basic parent-
 9. End-to-end manual test with one real PDF (Step 10)
 
 Don't jump ahead to embeddings/vector DB before Steps 1–6 are solid and you've manually inspected the parent/child output for at least one real document — chunking bugs are much cheaper to catch by eyeballing chunk boundaries than by debugging bad retrieval results later.
+
+---
+
+## Edge cases to watch for
+
+These surface in `handlePdfData` / `handleChunking` specifically — worth checking against each as you build Steps 3–9.
+
+**1. No heading before the first one appears**
+Content before any heading (or a heading-less document entirely) gets `section_index: -1`, `section_title: null`. Not a crash, but an unlabeled "ghost" section — explicitly name it (e.g. `"Untitled"` / `"Introduction"`) instead of leaving it `null`.
+
+**2. Empty section**
+Two headings back-to-back with nothing between them → `text: []` → joins to `""`. Filter empty-text chunks out before they reach embedding — embedding an empty string is either a wasted API call or an outright error depending on the provider.
+
+**3. Both `value` and `md` missing on an item**
+`item.value ?? item.md` only saves you if *one* of them exists. If a malformed item has neither, `undefined` gets pushed into the array, and `.join('\n\n')` silently stringifies it to the literal text `"undefined"` inside the chunk — quiet data corruption, not a crash, easy to miss in review.
+
+**4. `page_number` missing on an item**
+`Math.min`/`Math.max` against `undefined` produces `NaN` → `start_page`/`end_page` become `NaN`, silently breaking citations later.
+
+**5. `data.pages` missing or empty**
+If parsing fails or returns something unexpected, `for (const page of data.pages)` throws `Cannot read properties of undefined` — add a guard before the loop instead of assuming `data.pages` always exists.
+
+**6. Colliding `parent_id`s across documents**
+`parent_id: "section-${section_index}"` has no document identifier in it. Two different PDFs both produce `section-0`, `section-1`, ... — once multiple documents share a parent store/vector DB, they'll overwrite each other. **Fix before testing with a second document** — this one will bite immediately.
+
+**7. Low-confidence heading detection**
+Real parser output carries a `confidence` score per item (often 0.75–0.94, not 1.0) — the parser can mislabel bold text as a `heading`, or miss a real one, silently splitting/merging sections that shouldn't be. Nothing to fix in code directly; just something to sanity-check when reviewing real output on a new document.
+
+**8. Huge sections with no sub-splitting yet**
+If a document rarely uses level-2 headings, one section can span many pages/tables with nowhere to go until Step 4 (size-based splitting) exists — a reminder that Step 4 isn't optional for real-world documents, only for small test PDFs.
