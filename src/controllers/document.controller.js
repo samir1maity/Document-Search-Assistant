@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import documentService from '../services/document-parser.service.js'
 import chunkingService from '../services/chunking.service.js'
 import catchAsync from '../utils/catchAsync.js'
@@ -8,9 +9,12 @@ export const handleDocument = catchAsync(async (req, res) => {
       throw new AppError('No file uploaded. Attach a PDF under the "file" field.', 400)
    }
 
+   const documentId = randomUUID()
+   const documentName = req.file.originalname
+
    const data = await documentService.documentParser(req.file.buffer, req.file.originalname, req.file.mimetype)
 
-   const flatItems = chunkingService.handlePdfData({ data })
+   const flatItems = chunkingService.handlePdfData({ data, documentId, documentName })
 
    const parentChunks = chunkingService.handleChunking({ flatItems })
 

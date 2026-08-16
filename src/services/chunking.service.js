@@ -1,13 +1,11 @@
 import constants from "../config/constants.js";
 
-// Rough estimate — no tokenizer dependency yet. ~4 characters per token
-// is a reasonable approximation for English text.
+// rough estimate: ~4 chars per token
 function estimateTokens(text) {
    return Math.ceil(text.length / 4);
 }
 
-// Splits on sentence boundaries — used as the fallback when a single
-// paragraph is itself bigger than the target child size.
+// fallback for paragraphs too big to keep whole
 function splitBySentences(text) {
    return text.split(/(?<=[.!?])\s+/).filter(Boolean);
 }
@@ -32,8 +30,7 @@ function splitParagraphBySentences(paragraph, targetTokens) {
    return pieces;
 }
 
-// Grabs roughly the last N tokens' worth of characters from a chunk, to
-// prepend to the next chunk so context isn't lost right at the boundary.
+// tail of a chunk, used as overlap for the next one
 function takeLastTokens(text, tokenCount) {
    const charCount = tokenCount * 4;
    return text.length > charCount ? text.slice(-charCount) : text;
@@ -42,9 +39,7 @@ function takeLastTokens(text, tokenCount) {
 function splitParentIntoChildren(parent) {
    const { MAX_CHILD_CHUNK_TOKENS, TARGET_CHILD_CHUNK_TOKENS, OVERLAP_TOKENS } = constants.chunk;
 
-   // Step 5a: split on paragraph boundaries first (don't cut a paragraph/table
-   // mid-way); fall back to sentence-level splitting only for paragraphs that
-   // are themselves too large on their own.
+   // split by paragraph first, sentence-split only if a paragraph is too big
    const paragraphs = parent.text.split('\n\n').filter(Boolean);
    const pieces = [];
    for (const paragraph of paragraphs) {
@@ -55,8 +50,7 @@ function splitParentIntoChildren(parent) {
       }
    }
 
-   // Step 5b: greedily group pieces up to the target size, carrying a small
-   // overlap from the tail of one child into the start of the next.
+   // group pieces up to target size, with overlap between chunks
    const childTexts = [];
    let current = '';
    for (const piece of pieces) {
@@ -72,12 +66,12 @@ function splitParentIntoChildren(parent) {
    }
    if (current) childTexts.push(current);
 
-   // Note: every child from this parent shares the parent's start_page/end_page —
-   // per-paragraph page tracking was lost when handleChunking joined the section's
-   // items into one string. Good enough for citations at section granularity for now.
+   // all children share the parent's page range (no per-paragraph tracking yet)
    return childTexts.map((text, index) => ({
       chunk_id: `${parent.parent_id}-child-${index}`,
       parent_id: parent.parent_id,
+      document_id: parent.document_id,
+      document_name: parent.document_name,
       section_title: parent.section_title,
       text,
       start_page: parent.start_page,
@@ -96,6 +90,8 @@ function buildChildChunks({ parentChunks }) {
          childChunks.push({
             chunk_id: `${parent.parent_id}-child-0`,
             parent_id: parent.parent_id,
+            document_id: parent.document_id,
+            document_name: parent.document_name,
             section_title: parent.section_title,
             text: parent.text,
             start_page: parent.start_page,
@@ -113,11 +109,13 @@ function handleChunking({ flatItems }) {
    const parentChunksMap = new Map();
 
    for (const item of flatItems) {
-      const { section_index, section_title, page_number } = item;
+      const { section_index, section_title, page_number, document_id, document_name } = item;
 
       if (!parentChunksMap.has(section_index)) {
          parentChunksMap.set(section_index, {
-            parent_id: `section-${section_index}`,
+            parent_id: `${document_id}-section-${section_index}`,
+            document_id,
+            document_name,
             section_title,
             text: [],
             start_page: page_number,
@@ -143,7 +141,7 @@ function handleChunking({ flatItems }) {
    }));
 }
 
-function handlePdfData({ data }) {
+function handlePdfData({ data, documentId, documentName }) {
    const flatItems = [];
 
    let currentSectionIndex = -1;
@@ -166,7 +164,9 @@ function handlePdfData({ data }) {
             ...item,
             page_number: page.page_number,
             section_index: currentSectionIndex,
-            section_title: currentSectionTitle
+            section_title: currentSectionTitle,
+            document_id: documentId,
+            document_name: documentName
          })
       }
    }
