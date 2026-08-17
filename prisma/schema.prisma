@@ -1,0 +1,28 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Document {
+  id           String        @id
+  name         String
+  createdAt    DateTime      @default(now())
+  parentChunks ParentChunk[]
+}
+
+model ParentChunk {
+  id           String   @id
+  documentId   String
+  document     Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  sectionTitle String?
+  text         String   @db.Text
+  startPage    Int
+  endPage      Int
+  createdAt    DateTime @default(now())
+
+  @@index([documentId])
+}

@@ -14,9 +14,12 @@ export const handleDocument = catchAsync(async (req, res) => {
 
    const data = await documentService.documentParser(req.file.buffer, req.file.originalname, req.file.mimetype)
 
-   const flatItems = chunkingService.handlePdfData({ data, documentId, documentName })
+   const flatItems = chunkingService.flattenAndDetectSections({ data, documentId, documentName })
 
-   const parentChunks = chunkingService.handleChunking({ flatItems })
+   const parentChunks = chunkingService.buildParentChunks({ flatItems })
+
+   await chunkingService.saveDocument({ documentId, documentName })
+   await chunkingService.saveParentChunks({ parentChunks })
 
    const childChunks = chunkingService.buildChildChunks({ parentChunks })
 

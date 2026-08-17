@@ -1,4 +1,5 @@
 import constants from "../config/constants.js";
+import prismaClient from '../config/prisma.client.js'
 
 // rough estimate: ~4 chars per token
 function estimateTokens(text) {
@@ -105,7 +106,7 @@ function buildChildChunks({ parentChunks }) {
    return childChunks;
 }
 
-function handleChunking({ flatItems }) {
+function buildParentChunks({ flatItems }) {
    const parentChunksMap = new Map();
 
    for (const item of flatItems) {
@@ -141,7 +142,7 @@ function handleChunking({ flatItems }) {
    }));
 }
 
-function handlePdfData({ data, documentId, documentName }) {
+function flattenAndDetectSections({ data, documentId, documentName }) {
    const flatItems = [];
 
    let currentSectionIndex = -1;
@@ -174,8 +175,36 @@ function handlePdfData({ data, documentId, documentName }) {
    return flatItems;
 }
 
+async function saveDocument({ documentId, documentName }) {
+   return prismaClient.document.create({
+      data: { id: documentId, name: documentName }
+   })
+}
+
+async function saveParentChunks({ parentChunks }) {
+   return prismaClient.parentChunk.createMany({
+      data: parentChunks.map(chunk => ({
+         id: chunk.parent_id,
+         documentId: chunk.document_id,
+         sectionTitle: chunk.section_title,
+         text: chunk.text,
+         startPage: chunk.start_page,
+         endPage: chunk.end_page
+      }))
+   })
+}
+
+async function getParentChunkById(parentId) {
+   return prismaClient.parentChunk.findUnique({
+      where: { id: parentId }
+   })
+}
+
 export default {
-   handleChunking,
-   handlePdfData,
-   buildChildChunks
+   buildParentChunks,
+   flattenAndDetectSections,
+   buildChildChunks,
+   saveDocument,
+   saveParentChunks,
+   getParentChunkById
 }
