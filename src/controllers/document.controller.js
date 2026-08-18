@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import documentService from '../services/document-parser.service.js'
 import chunkingService from '../services/chunking.service.js'
+import embeddingService from '../services/embedding.service.js'
 import catchAsync from '../utils/catchAsync.js'
 import AppError from '../utils/AppError.js'
 
@@ -23,8 +24,10 @@ export const handleDocument = catchAsync(async (req, res) => {
 
    const childChunks = chunkingService.buildChildChunks({ parentChunks })
 
+   const embeddedChunks = await embeddingService.embedChildChunks({ childChunks })
+
    res.status(200).json({
-      data: childChunks,
+      data: embeddedChunks,
       success: true
    })
 })
