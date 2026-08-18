@@ -19,6 +19,15 @@ async function embedChildChunks({ childChunks }) {
    }));
 }
 
+async function embedQuery({ query }) {
+   const response = await openaiClient.embeddings.create({
+      model: constants.embedding.MODEL,
+      input: query
+   });
+
+   return response.data[0].embedding;
+}
+
 async function ensureCollection() {
    const { collections } = await qdrantClient.getCollections();
    const exists = collections.some(c => c.name === constants.qdrant.COLLECTION_NAME);
@@ -71,6 +80,7 @@ async function searchChildChunks({ queryEmbedding, limit = 5 }) {
 
 export default {
    embedChildChunks,
+   embedQuery,
    saveChildChunks,
    searchChildChunks
 }

@@ -1,7 +1,5 @@
 import multer from 'multer'
 
-// Keep the file in memory as a Buffer (req.file.buffer) instead of writing
-// to disk — the service streams it straight to LlamaCloud, no local copy needed.
 const storage = multer.memoryStorage()
 
 const upload = multer({
@@ -10,8 +8,17 @@ const upload = multer({
         fileSize: 25 * 1024 * 1024, // 25MB
     },
     fileFilter: (req, file, cb) => {
-        if (file.mimetype !== 'application/pdf') {
-            return cb(new Error('Only PDF files are allowed'))
+        console.log('upload fileFilter:', {
+            fieldname: file.fieldname,
+            originalname: file.originalname,
+            mimetype: file.mimetype
+        })
+
+        const isPdfMimetype = file.mimetype === 'application/pdf'
+        const isPdfExtension = file.originalname.toLowerCase().endsWith('.pdf')
+
+        if (!isPdfMimetype && !isPdfExtension) {
+            return cb(new Error(`Only PDF files are allowed (got mimetype: "${file.mimetype}", filename: "${file.originalname}")`))
         }
         cb(null, true)
     }
