@@ -5,8 +5,12 @@ const constants = {
         OVERLAP_TOKENS: 10
     },
     embedding: {
-        // cheapest OpenAI embedding model — $0.02/1M tokens vs $0.13/1M for -large
-        MODEL: 'text-embedding-3-small'
+        MODEL: 'text-embedding-3-small',
+        DIMENSIONS: 1536
+    },
+    qdrant: {
+        COLLECTION_NAME: 'child_chunks',
+        DISTANCE: 'Cosine'
     }
 }
 
