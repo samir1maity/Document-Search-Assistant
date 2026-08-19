@@ -29,8 +29,8 @@ export const handleDocument = catchAsync(async (req, res) => {
    await embeddingService.saveChildChunks({ embeddedChunks })
 
    res.status(200).json({
-      data: embeddedChunks,
-      success: true
+      success: true,
+      message: 'Document processed and embedded successfully.'
    })
 })
 

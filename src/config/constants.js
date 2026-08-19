@@ -2,7 +2,8 @@ const constants = {
     chunk: {
         MAX_CHILD_CHUNK_TOKENS: 50,
         TARGET_CHILD_CHUNK_TOKENS: 25,
-        OVERLAP_TOKENS: 10
+        OVERLAP_TOKENS: 10,
+        DEFAULT_SECTION_LEVEL: 2
     },
     embedding: {
         MODEL: 'text-embedding-3-small',

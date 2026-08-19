@@ -127,8 +127,7 @@ function buildParentChunks({ flatItems }) {
       const parentChunk = parentChunksMap.get(section_index);
 
       // skip the heading that started this section — section_title already covers it
-      const isSectionHeading = item.type === 'heading' && item.level <= 2;
-      if (!isSectionHeading) {
+      if (!item.is_section_heading) {
          parentChunk.text.push(item.value ?? item.md);
       }
 
@@ -142,8 +141,24 @@ function buildParentChunks({ flatItems }) {
    }));
 }
 
+// shallowest heading level in the doc = section boundary
+function detectSectionLevel(pages) {
+   let minLevel = Infinity;
+
+   for (const page of pages) {
+      for (const item of page.items) {
+         if (item.type === 'heading' && item.level < minLevel) {
+            minLevel = item.level;
+         }
+      }
+   }
+
+   return minLevel === Infinity ? constants.chunk.DEFAULT_SECTION_LEVEL : minLevel;
+}
+
 function flattenAndDetectSections({ data, documentId, documentName }) {
    const flatItems = [];
+   const maxSectionHeadingLevel = detectSectionLevel(data.pages);
 
    let currentSectionIndex = -1;
    let currentSectionTitle = null;
@@ -155,8 +170,9 @@ function flattenAndDetectSections({ data, documentId, documentName }) {
             continue;
          }
 
-         // only level 1-2 headings start a new section; level 3+ stays in the current one
-         if (item.type === 'heading' && item.level <= 2) {
+         // only section-level headings start a new section
+         const isSectionHeading = item.type === 'heading' && item.level <= maxSectionHeadingLevel;
+         if (isSectionHeading) {
             currentSectionIndex += 1;
             currentSectionTitle = item.value;
          }
@@ -166,6 +182,7 @@ function flattenAndDetectSections({ data, documentId, documentName }) {
             page_number: page.page_number,
             section_index: currentSectionIndex,
             section_title: currentSectionTitle,
+            is_section_heading: isSectionHeading,
             document_id: documentId,
             document_name: documentName
          })
