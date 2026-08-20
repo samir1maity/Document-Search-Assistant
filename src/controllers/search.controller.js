@@ -1,5 +1,6 @@
 import embeddingService from '../services/embedding.service.js'
 import chunkingService from '../services/chunking.service.js'
+import answerService from '../services/answer.service.js'
 import catchAsync from '../utils/catchAsync.js'
 import AppError from '../utils/AppError.js'
 
@@ -38,8 +39,11 @@ export const handleSearch = catchAsync(async (req, res) => {
       }
    }))
 
+   const answer = await answerService.generateAnswer({ query, results })
+
    res.status(200).json({
       data: results,
+      answer,
       success: true
    })
 })

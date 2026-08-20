@@ -9,6 +9,9 @@ const constants = {
         MODEL: 'text-embedding-3-small',
         DIMENSIONS: 1536
     },
+    answer: {
+        MODEL: 'gpt-4o-mini'
+    },
     qdrant: {
         COLLECTION_NAME: 'child_chunks',
         DISTANCE: 'Cosine'
