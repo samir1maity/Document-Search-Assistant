@@ -68,10 +68,11 @@ async function saveChildChunks({ embeddedChunks }) {
    });
 }
 
-async function searchChildChunks({ queryEmbedding, limit = 5 }) {
+async function searchChildChunks({ queryEmbedding, limit = 5, filter }) {
    const result = await qdrantClient.query(constants.qdrant.COLLECTION_NAME, {
       query: queryEmbedding,
       limit,
+      filter,
       with_payload: true
    });
 
