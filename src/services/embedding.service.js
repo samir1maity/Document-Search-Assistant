@@ -39,6 +39,17 @@ async function ensureCollection() {
             distance: constants.qdrant.DISTANCE
          }
       });
+
+      // text index enables keyword search below
+      await qdrantClient.createPayloadIndex(constants.qdrant.COLLECTION_NAME, {
+         field_name: 'text',
+         field_schema: {
+            type: 'text',
+            tokenizer: 'word',
+            min_token_len: 2,
+            lowercase: true
+         }
+      });
    }
 }
 
@@ -79,9 +90,26 @@ async function searchChildChunks({ queryEmbedding, limit = 5, filter }) {
    return result.points;
 }
 
+// exact-term match on `text`; filter-only query, so results aren't ranked
+async function searchChildChunksByKeyword({ query, limit = 5, filter }) {
+   const keywordCondition = { key: 'text', match: { text: query } };
+   const combinedFilter = {
+      must: [...(filter?.must ?? []), keywordCondition]
+   };
+
+   const result = await qdrantClient.query(constants.qdrant.COLLECTION_NAME, {
+      filter: combinedFilter,
+      limit,
+      with_payload: true
+   });
+
+   return result.points;
+}
+
 export default {
    embedChildChunks,
    embedQuery,
    saveChildChunks,
-   searchChildChunks
+   searchChildChunks,
+   searchChildChunksByKeyword
 }
