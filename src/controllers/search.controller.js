@@ -1,6 +1,7 @@
 import embeddingService from '../services/embedding.service.js'
 import chunkingService from '../services/chunking.service.js'
 import answerService from '../services/answer.service.js'
+import mergeWithRRF from '../utils/rrf.js'
 import catchAsync from '../utils/catchAsync.js'
 import AppError from '../utils/AppError.js'
 
@@ -21,13 +22,13 @@ function buildFilter({ document_id, page_gte, page_lte }) {
    return must.length ? { must } : undefined
 }
 
-// shared shape for both vector and keyword matches, so callers can compare them apples-to-apples
+// resolves the parent chunk for each merged match
 async function resolveMatches(matches) {
    return Promise.all(matches.map(async (match) => {
       const parent = await chunkingService.getParentChunkById(match.payload.parent_id)
 
       return {
-         score: match.score,
+         score: match.rrf_score,
          chunk: {
             chunk_id: match.payload.chunk_id,
             section_title: match.payload.section_title,
@@ -62,15 +63,16 @@ export const handleSearch = catchAsync(async (req, res) => {
       embeddingService.searchChildChunksByKeyword({ query, limit: resultLimit, filter })
    ])
 
-   const results = await resolveMatches(vectorMatches)
-   // kept separate from `results` for now — not merged into ranking or fed to the LLM yet
-   const keywordResults = await resolveMatches(keywordMatches)
+   const mergedMatches = mergeWithRRF([vectorMatches, keywordMatches], {
+      getKey: match => match.payload.chunk_id
+   }).slice(0, resultLimit)
+
+   const results = await resolveMatches(mergedMatches)
 
    const answer = await answerService.generateAnswer({ query, results })
 
    res.status(200).json({
       data: results,
-      keyword_data: keywordResults,
       answer,
       success: true
    })
