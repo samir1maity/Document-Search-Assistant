@@ -12,6 +12,10 @@ const constants = {
     answer: {
         MODEL: 'gpt-4o-mini'
     },
+    rerank: {
+        MODEL: 'rerank-v3.5',
+        POOL_LIMIT: 25
+    },
     qdrant: {
         COLLECTION_NAME: 'child_chunks',
         DISTANCE: 'Cosine'

@@ -1,9 +1,11 @@
 import embeddingService from '../services/embedding.service.js'
 import chunkingService from '../services/chunking.service.js'
 import answerService from '../services/answer.service.js'
+import rerankService from '../services/rerank.service.js'
 import mergeWithRRF from '../utils/rrf.js'
 import catchAsync from '../utils/catchAsync.js'
 import AppError from '../utils/AppError.js'
+import constants from '../config/constants.js'
 
 // scope the vector search down before ranking, not after — cheaper and never short-changes `limit`
 function buildFilter({ document_id, page_gte, page_lte }) {
@@ -28,7 +30,7 @@ async function resolveMatches(matches) {
       const parent = await chunkingService.getParentChunkById(match.payload.parent_id)
 
       return {
-         score: match.rrf_score,
+         score: match.rerank_score ?? match.rrf_score,
          chunk: {
             chunk_id: match.payload.chunk_id,
             section_title: match.payload.section_title,
@@ -58,16 +60,21 @@ export const handleSearch = catchAsync(async (req, res) => {
 
    const queryEmbedding = await embeddingService.embedQuery({ query })
 
+   // cast a wide net here — reranking below is what narrows it down to resultLimit
+   const poolLimit = constants.rerank.POOL_LIMIT
+
    const [vectorMatches, keywordMatches] = await Promise.all([
-      embeddingService.searchChildChunks({ queryEmbedding, limit: resultLimit, filter }),
-      embeddingService.searchChildChunksByKeyword({ query, limit: resultLimit, filter })
+      embeddingService.searchChildChunks({ queryEmbedding, limit: poolLimit, filter }),
+      embeddingService.searchChildChunksByKeyword({ query, limit: poolLimit, filter })
    ])
 
    const mergedMatches = mergeWithRRF([vectorMatches, keywordMatches], {
       getKey: match => match.payload.chunk_id
-   }).slice(0, resultLimit)
+   })
 
-   const results = await resolveMatches(mergedMatches)
+   const rerankedMatches = await rerankService.rerankMatches({ query, matches: mergedMatches, topN: resultLimit })
+
+   const results = await resolveMatches(rerankedMatches)
 
    const answer = await answerService.generateAnswer({ query, results })
 

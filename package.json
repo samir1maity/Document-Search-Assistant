@@ -18,6 +18,7 @@
     "@llamaindex/llama-cloud": "^2.14.0",
     "@prisma/client": "^6.19.3",
     "@qdrant/js-client-rest": "^1.19.0",
+    "cohere-ai": "^8.0.1",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "multer": "^2.2.0",
