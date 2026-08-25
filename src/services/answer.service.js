@@ -9,11 +9,26 @@ function buildContext(results) {
       .join('\n\n')
 }
 
+// same order/numbering as buildContext, so an answer's [n] maps to sources[n - 1]
+function buildSources(results) {
+   return results
+      .filter(result => result.parent)
+      .map(result => ({
+         document_name: result.parent.document_name,
+         section_title: result.parent.section_title,
+         start_page: result.parent.start_page,
+         end_page: result.parent.end_page
+      }))
+}
+
 async function generateAnswer({ query, results }) {
    const context = buildContext(results)
 
    if (!context) {
-      return "I couldn't find anything relevant in the documents to answer that.";
+      return {
+         answer: "I couldn't find anything relevant in the documents to answer that.",
+         sources: []
+      };
    }
 
    const response = await openaiClient.chat.completions.create({
@@ -30,7 +45,10 @@ async function generateAnswer({ query, results }) {
       ]
    });
 
-   return response.choices[0].message.content;
+   return {
+      answer: response.choices[0].message.content,
+      sources: buildSources(results)
+   };
 }
 
 export default {

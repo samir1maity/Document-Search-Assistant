@@ -76,11 +76,12 @@ export const handleSearch = catchAsync(async (req, res) => {
 
    const results = await resolveMatches(rerankedMatches)
 
-   const answer = await answerService.generateAnswer({ query, results })
+   const { answer, sources } = await answerService.generateAnswer({ query, results })
 
    res.status(200).json({
       data: results,
       answer,
+      sources,
       success: true
    })
 })
