@@ -1,0 +1,7 @@
+[
+   {
+      "question": "REPLACE ME — ask a real question the way a user would, not the way a section title reads",
+      "expected_document": "REPLACE ME — exact document_name as uploaded, e.g. RefundPolicy.pdf",
+      "expected_section": "REPLACE ME — exact section_title as chunked, e.g. 2. Eligibility for Refunds"
+   }
+]
