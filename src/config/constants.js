@@ -16,6 +16,9 @@ const constants = {
         MODEL: 'rerank-v3.5',
         POOL_LIMIT: 25
     },
+    eval: {
+        JUDGE_MODEL: 'gpt-4o-mini'
+    },
     qdrant: {
         COLLECTION_NAME: 'child_chunks',
         DISTANCE: 'Cosine'
