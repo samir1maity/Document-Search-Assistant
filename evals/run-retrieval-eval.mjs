@@ -1,9 +1,11 @@
 // Standalone retrieval eval — run manually, not exposed as an API route.
 //   node evals/run-retrieval-eval.mjs
 //
-// Scores: Hit Rate@k (did the right section show up at all) and MRR (how
-// far down the list it was). A "match" is compared on document_name +
-// section_title from the payload — avoids an extra DB lookup during eval runs.
+// Scores: Hit Rate@k (did the right section show up at all), MRR (how far
+// down the list it was), and Context Precision@k (what fraction of the
+// retrieved chunks were actually relevant, vs. noise). A "match" is compared
+// on document_name + section_title from the payload — avoids an extra DB
+// lookup during eval runs.
 
 import 'dotenv/config'
 import { readFile, mkdir, writeFile } from 'fs/promises'
@@ -30,12 +32,20 @@ async function runQuestion({ question }) {
    }))
 }
 
+function isMatch(result, { expected_document, expected_section }) {
+   return result.document_name === expected_document && result.section_title === expected_section
+}
+
 // 1-indexed rank of the first matching result, or 0 if none of the top-k match
-function findMatchRank(results, { expected_document, expected_section }) {
-   const index = results.findIndex(result =>
-      result.document_name === expected_document && result.section_title === expected_section
-   )
+function findMatchRank(results, entry) {
+   const index = results.findIndex(result => isMatch(result, entry))
    return index === -1 ? 0 : index + 1
+}
+
+// fraction of the retrieved set that's actually relevant — signal vs. noise
+function contextPrecision(results, entry) {
+   if (results.length === 0) return 0;
+   return results.filter(result => isMatch(result, entry)).length / results.length;
 }
 
 async function evaluateEntry(entry) {
@@ -48,20 +58,22 @@ async function evaluateEntry(entry) {
       hit: rank > 0,
       rank,
       reciprocal_rank: rank > 0 ? 1 / rank : 0,
+      context_precision: contextPrecision(results, entry),
       top_result: results[0] ? `${results[0].document_name} / ${results[0].section_title}` : '(none)'
    }
 }
 
 function printReport(evaluations) {
-   console.log('\n' + 'Question'.padEnd(40) + 'Expected'.padEnd(35) + 'Hit'.padEnd(5) + 'Rank'.padEnd(6) + 'Top result')
-   console.log('-'.repeat(120))
+   console.log('\n' + 'Question'.padEnd(38) + 'Expected'.padEnd(33) + 'Hit'.padEnd(5) + 'Rank'.padEnd(6) + 'Prec'.padEnd(6) + 'Top result')
+   console.log('-'.repeat(125))
 
    for (const e of evaluations) {
       console.log(
-         truncate(e.question, 38).padEnd(40) +
-         truncate(e.expected, 33).padEnd(35) +
+         truncate(e.question, 36).padEnd(38) +
+         truncate(e.expected, 31).padEnd(33) +
          (e.hit ? 'Y' : 'N').padEnd(5) +
          String(e.rank || '-').padEnd(6) +
+         e.context_precision.toFixed(2).padEnd(6) +
          e.top_result
       )
    }
@@ -69,12 +81,14 @@ function printReport(evaluations) {
    const hits = evaluations.filter(e => e.hit).length
    const hitRate = hits / evaluations.length
    const mrr = evaluations.reduce((sum, e) => sum + e.reciprocal_rank, 0) / evaluations.length
+   const avgContextPrecision = evaluations.reduce((sum, e) => sum + e.context_precision, 0) / evaluations.length
 
-   console.log('-'.repeat(120))
+   console.log('-'.repeat(125))
    console.log(`Hit Rate@${TOP_K}: ${(hitRate * 100).toFixed(1)}% (${hits}/${evaluations.length})`)
    console.log(`MRR: ${mrr.toFixed(3)}`)
+   console.log(`Context Precision@${TOP_K}: ${avgContextPrecision.toFixed(3)}`)
 
-   return { hit_rate: hitRate, mrr, top_k: TOP_K }
+   return { hit_rate: hitRate, mrr, context_precision: avgContextPrecision, top_k: TOP_K }
 }
 
 function truncate(text, maxLength) {
