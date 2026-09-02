@@ -2,10 +2,10 @@
 //   node evals/run-retrieval-eval.mjs
 //
 // Scores: Hit Rate@k (did the right section show up at all), MRR (how far
-// down the list it was), and Context Precision@k (what fraction of the
-// retrieved chunks were actually relevant, vs. noise). A "match" is compared
-// on document_name + section_title from the payload — avoids an extra DB
-// lookup during eval runs.
+// down the list it was), Context Precision@k (what fraction of the retrieved
+// chunks were actually relevant, vs. noise), and latency (how long retrieval
+// took). A "match" is compared on document_name + section_title from the
+// payload — avoids an extra DB lookup during eval runs.
 
 import 'dotenv/config'
 import { readFile, mkdir, writeFile } from 'fs/promises'
@@ -49,7 +49,10 @@ function contextPrecision(results, entry) {
 }
 
 async function evaluateEntry(entry) {
+   const startedAt = Date.now()
    const results = await runQuestion(entry)
+   const latencyMs = Date.now() - startedAt
+
    const rank = findMatchRank(results, entry)
 
    return {
@@ -59,21 +62,23 @@ async function evaluateEntry(entry) {
       rank,
       reciprocal_rank: rank > 0 ? 1 / rank : 0,
       context_precision: contextPrecision(results, entry),
+      latency_ms: latencyMs,
       top_result: results[0] ? `${results[0].document_name} / ${results[0].section_title}` : '(none)'
    }
 }
 
 function printReport(evaluations) {
-   console.log('\n' + 'Question'.padEnd(38) + 'Expected'.padEnd(33) + 'Hit'.padEnd(5) + 'Rank'.padEnd(6) + 'Prec'.padEnd(6) + 'Top result')
-   console.log('-'.repeat(125))
+   console.log('\n' + 'Question'.padEnd(34) + 'Expected'.padEnd(29) + 'Hit'.padEnd(5) + 'Rank'.padEnd(6) + 'Prec'.padEnd(6) + 'ms'.padEnd(7) + 'Top result')
+   console.log('-'.repeat(130))
 
    for (const e of evaluations) {
       console.log(
-         truncate(e.question, 36).padEnd(38) +
-         truncate(e.expected, 31).padEnd(33) +
+         truncate(e.question, 32).padEnd(34) +
+         truncate(e.expected, 27).padEnd(29) +
          (e.hit ? 'Y' : 'N').padEnd(5) +
          String(e.rank || '-').padEnd(6) +
          e.context_precision.toFixed(2).padEnd(6) +
+         String(e.latency_ms).padEnd(7) +
          e.top_result
       )
    }
@@ -82,13 +87,15 @@ function printReport(evaluations) {
    const hitRate = hits / evaluations.length
    const mrr = evaluations.reduce((sum, e) => sum + e.reciprocal_rank, 0) / evaluations.length
    const avgContextPrecision = evaluations.reduce((sum, e) => sum + e.context_precision, 0) / evaluations.length
+   const avgLatencyMs = evaluations.reduce((sum, e) => sum + e.latency_ms, 0) / evaluations.length
 
-   console.log('-'.repeat(125))
+   console.log('-'.repeat(130))
    console.log(`Hit Rate@${TOP_K}: ${(hitRate * 100).toFixed(1)}% (${hits}/${evaluations.length})`)
    console.log(`MRR: ${mrr.toFixed(3)}`)
    console.log(`Context Precision@${TOP_K}: ${avgContextPrecision.toFixed(3)}`)
+   console.log(`Avg latency: ${avgLatencyMs.toFixed(0)}ms`)
 
-   return { hit_rate: hitRate, mrr, context_precision: avgContextPrecision, top_k: TOP_K }
+   return { hit_rate: hitRate, mrr, context_precision: avgContextPrecision, avg_latency_ms: avgLatencyMs, top_k: TOP_K }
 }
 
 function truncate(text, maxLength) {

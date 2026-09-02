@@ -4,7 +4,9 @@
 // Runs the full pipeline (retrieval → rerank → generate) per question, then
 // scores the generated answer with three LLM-as-judge checks: Faithfulness
 // (grounded in context?), Relevance (addresses the question?), Correctness
-// (matches expected_answer? only if the dataset entry has one).
+// (matches expected_answer? only if the dataset entry has one). Also tracks
+// pipeline latency separately from judge latency — a slow answer and a slow
+// judge call are different problems to chase down.
 
 import 'dotenv/config'
 import { readFile, mkdir, writeFile } from 'fs/promises'
@@ -28,9 +30,13 @@ function buildContext(results) {
 }
 
 async function evaluateEntry(entry) {
+   const pipelineStartedAt = Date.now()
    const { results, answer } = await searchService.searchAndAnswer({ query: entry.question })
+   const pipelineLatencyMs = Date.now() - pipelineStartedAt
+
    const context = buildContext(results)
 
+   const judgeStartedAt = Date.now()
    const [faithfulness, relevance, correctness] = await Promise.all([
       judgeFaithfulness({ context, answer }),
       judgeRelevance({ question: entry.question, answer }),
@@ -38,6 +44,7 @@ async function evaluateEntry(entry) {
          ? judgeCorrectness({ answer, expectedAnswer: entry.expected_answer })
          : Promise.resolve(null)
    ])
+   const judgeLatencyMs = Date.now() - judgeStartedAt
 
    return {
       question: entry.question,
@@ -45,20 +52,24 @@ async function evaluateEntry(entry) {
       faithful: faithfulness.faithful,
       faithfulness_reasoning: faithfulness.reasoning,
       relevance_score: relevance.score,
-      correctness_score: correctness?.score ?? null
+      correctness_score: correctness?.score ?? null,
+      pipeline_latency_ms: pipelineLatencyMs,
+      judge_latency_ms: judgeLatencyMs
    }
 }
 
 function printReport(evaluations) {
-   console.log('\n' + 'Question'.padEnd(40) + 'Faithful'.padEnd(10) + 'Relevance'.padEnd(11) + 'Correctness')
-   console.log('-'.repeat(90))
+   console.log('\n' + 'Question'.padEnd(34) + 'Faithful'.padEnd(10) + 'Relevance'.padEnd(11) + 'Correctness'.padEnd(13) + 'Pipeline ms'.padEnd(13) + 'Judge ms')
+   console.log('-'.repeat(105))
 
    for (const e of evaluations) {
       console.log(
-         truncate(e.question, 38).padEnd(40) +
+         truncate(e.question, 32).padEnd(34) +
          (e.faithful ? 'Y' : 'N').padEnd(10) +
          `${e.relevance_score}/5`.padEnd(11) +
-         (e.correctness_score !== null ? `${e.correctness_score}/5` : 'n/a')
+         (e.correctness_score !== null ? `${e.correctness_score}/5` : 'n/a').padEnd(13) +
+         String(e.pipeline_latency_ms).padEnd(13) +
+         String(e.judge_latency_ms)
       )
    }
 
@@ -67,13 +78,23 @@ function printReport(evaluations) {
    const avgRelevance = average(evaluations.map(e => e.relevance_score))
    const correctnessScores = evaluations.map(e => e.correctness_score).filter(score => score !== null)
    const avgCorrectness = correctnessScores.length ? average(correctnessScores) : null
+   const avgPipelineLatencyMs = average(evaluations.map(e => e.pipeline_latency_ms))
+   const avgJudgeLatencyMs = average(evaluations.map(e => e.judge_latency_ms))
 
-   console.log('-'.repeat(90))
+   console.log('-'.repeat(105))
    console.log(`Faithfulness: ${(faithfulRate * 100).toFixed(1)}% (${faithfulCount}/${evaluations.length})`)
    console.log(`Avg Relevance: ${avgRelevance.toFixed(2)}/5`)
    console.log(`Avg Correctness: ${avgCorrectness !== null ? avgCorrectness.toFixed(2) + '/5' : 'n/a (no expected_answer in dataset)'}`)
+   console.log(`Avg pipeline latency: ${avgPipelineLatencyMs.toFixed(0)}ms`)
+   console.log(`Avg judge latency: ${avgJudgeLatencyMs.toFixed(0)}ms`)
 
-   return { faithful_rate: faithfulRate, avg_relevance: avgRelevance, avg_correctness: avgCorrectness }
+   return {
+      faithful_rate: faithfulRate,
+      avg_relevance: avgRelevance,
+      avg_correctness: avgCorrectness,
+      avg_pipeline_latency_ms: avgPipelineLatencyMs,
+      avg_judge_latency_ms: avgJudgeLatencyMs
+   }
 }
 
 function average(numbers) {
