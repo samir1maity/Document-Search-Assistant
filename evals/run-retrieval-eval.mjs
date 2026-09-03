@@ -12,8 +12,11 @@ import { readFile, mkdir, writeFile } from 'fs/promises'
 import { fileURLToPath } from 'url'
 import path from 'path'
 import embeddingService from '../src/services/embedding.service.js'
+import { loadPreviousRun, printComparison } from './compare.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const RESULTS_DIR = path.join(__dirname, 'results')
+const RESULTS_PREFIX = 'retrieval-'
 const TOP_K = 5
 
 async function loadDataset() {
@@ -103,15 +106,21 @@ function truncate(text, maxLength) {
 }
 
 async function saveResults(evaluations, scores) {
-   const resultsDir = path.join(__dirname, 'results')
-   await mkdir(resultsDir, { recursive: true })
+   await mkdir(RESULTS_DIR, { recursive: true })
 
    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-   const outPath = path.join(resultsDir, `${timestamp}.json`)
+   const outPath = path.join(RESULTS_DIR, `${RESULTS_PREFIX}${timestamp}.json`)
 
    await writeFile(outPath, JSON.stringify({ timestamp, scores, evaluations }, null, 2))
    console.log(`\nSaved: evals/results/${path.basename(outPath)}`)
 }
+
+const COMPARISON_METRICS = [
+   { key: 'hit_rate', label: 'Hit Rate', higherIsBetter: true, decimals: 3 },
+   { key: 'mrr', label: 'MRR', higherIsBetter: true, decimals: 3 },
+   { key: 'context_precision', label: 'Context Precision', higherIsBetter: true, decimals: 3 },
+   { key: 'avg_latency_ms', label: 'Avg Latency (ms)', higherIsBetter: false, decimals: 0 }
+]
 
 async function main() {
    const dataset = await loadDataset()
@@ -122,6 +131,10 @@ async function main() {
    }
 
    const scores = printReport(evaluations)
+
+   const previousRun = await loadPreviousRun(RESULTS_DIR, RESULTS_PREFIX)
+   printComparison(previousRun, scores, COMPARISON_METRICS)
+
    await saveResults(evaluations, scores)
 }
 

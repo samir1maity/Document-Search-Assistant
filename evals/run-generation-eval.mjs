@@ -14,8 +14,11 @@ import { fileURLToPath } from 'url'
 import path from 'path'
 import searchService from '../src/services/search.service.js'
 import { judgeFaithfulness, judgeRelevance, judgeCorrectness } from './judge.mjs'
+import { loadPreviousRun, printComparison } from './compare.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const RESULTS_DIR = path.join(__dirname, 'results')
+const RESULTS_PREFIX = 'generation-'
 
 async function loadDataset() {
    const raw = await readFile(path.join(__dirname, 'golden-dataset.json'), 'utf-8')
@@ -106,15 +109,21 @@ function truncate(text, maxLength) {
 }
 
 async function saveResults(evaluations, scores) {
-   const resultsDir = path.join(__dirname, 'results')
-   await mkdir(resultsDir, { recursive: true })
+   await mkdir(RESULTS_DIR, { recursive: true })
 
    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-   const outPath = path.join(resultsDir, `generation-${timestamp}.json`)
+   const outPath = path.join(RESULTS_DIR, `${RESULTS_PREFIX}${timestamp}.json`)
 
    await writeFile(outPath, JSON.stringify({ timestamp, scores, evaluations }, null, 2))
    console.log(`\nSaved: evals/results/${path.basename(outPath)}`)
 }
+
+const COMPARISON_METRICS = [
+   { key: 'faithful_rate', label: 'Faithfulness', higherIsBetter: true, decimals: 3 },
+   { key: 'avg_relevance', label: 'Avg Relevance', higherIsBetter: true, decimals: 2 },
+   { key: 'avg_correctness', label: 'Avg Correctness', higherIsBetter: true, decimals: 2 },
+   { key: 'avg_pipeline_latency_ms', label: 'Avg Pipeline Latency (ms)', higherIsBetter: false, decimals: 0 }
+]
 
 async function main() {
    const dataset = await loadDataset()
@@ -125,6 +134,10 @@ async function main() {
    }
 
    const scores = printReport(evaluations)
+
+   const previousRun = await loadPreviousRun(RESULTS_DIR, RESULTS_PREFIX)
+   printComparison(previousRun, scores, COMPARISON_METRICS)
+
    await saveResults(evaluations, scores)
 }
 
