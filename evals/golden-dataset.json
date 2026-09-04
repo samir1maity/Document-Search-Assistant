@@ -3,6 +3,7 @@
       "question": "REPLACE ME — ask a real question the way a user would, not the way a section title reads",
       "expected_document": "REPLACE ME — exact document_name as uploaded, e.g. RefundPolicy.pdf",
       "expected_section": "REPLACE ME — exact section_title as chunked, e.g. 2. Eligibility for Refunds",
+      "expected_matches": "REPLACE ME — optional; use instead of expected_document/expected_section when a question is answered by more than one relevant chunk (needed for Context Recall@k to mean anything beyond a single hit/miss). Format: [{\"document\": \"RefundPolicy.pdf\", \"section\": \"2. Eligibility for Refunds\"}, {\"document\": \"RefundPolicy.pdf\", \"section\": \"3. Refund Timelines\"}]. Leave this field out (or delete it) to use the single expected_document/expected_section pair above — it is ignored unless it's an array.",
       "expected_answer": "REPLACE ME — optional; a short reference answer used only by run-generation-eval.mjs's Correctness check. Leave the field out entirely to skip that check for a question."
    }
 ]
