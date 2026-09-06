@@ -7,6 +7,12 @@
 // (matches expected_answer? only if the dataset entry has one). Also tracks
 // pipeline latency separately from judge latency — a slow answer and a slow
 // judge call are different problems to chase down.
+//
+// Exits non-zero (without stopping the report/save) if any metric regressed
+// vs. the previous saved run, or fell below a minimum configured in
+// evals/thresholds.json under a "generation" key — e.g. { "generation": {
+// "faithful_rate": 0.8 } }. That file is optional; with no previous run and
+// no thresholds.json, the gate always passes.
 
 import 'dotenv/config'
 import { readFile, mkdir, writeFile } from 'fs/promises'
@@ -14,7 +20,7 @@ import { fileURLToPath } from 'url'
 import path from 'path'
 import searchService from '../src/services/search.service.js'
 import { judgeFaithfulness, judgeRelevance, judgeCorrectness } from './judge.mjs'
-import { loadPreviousRun, printComparison } from './compare.mjs'
+import { loadPreviousRun, printComparison, loadThresholds, findRegressions, findThresholdFailures, printGate } from './compare.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const RESULTS_DIR = path.join(__dirname, 'results')
@@ -139,6 +145,13 @@ async function main() {
    printComparison(previousRun, scores, COMPARISON_METRICS)
 
    await saveResults(evaluations, scores)
+
+   const thresholds = await loadThresholds(__dirname, 'generation')
+   const passed = printGate({
+      regressions: findRegressions(previousRun, scores, COMPARISON_METRICS),
+      thresholdFailures: findThresholdFailures(scores, COMPARISON_METRICS, thresholds)
+   })
+   if (!passed) process.exitCode = 1;
 }
 
 main()

@@ -12,13 +12,19 @@
 // runs. A dataset entry can list multiple relevant chunks via
 // `expected_matches`; entries with a single expected_document/section still
 // work unchanged (see golden-dataset.json).
+//
+// Exits non-zero (without stopping the report/save) if any metric regressed
+// vs. the previous saved run, or fell below a minimum configured in
+// evals/thresholds.json under a "retrieval" key — e.g. { "retrieval": {
+// "hit_rate": 0.8 } }. That file is optional; with no previous run and no
+// thresholds.json, the gate always passes.
 
 import 'dotenv/config'
 import { readFile, mkdir, writeFile } from 'fs/promises'
 import { fileURLToPath } from 'url'
 import path from 'path'
 import embeddingService from '../src/services/embedding.service.js'
-import { loadPreviousRun, printComparison } from './compare.mjs'
+import { loadPreviousRun, printComparison, loadThresholds, findRegressions, findThresholdFailures, printGate } from './compare.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const RESULTS_DIR = path.join(__dirname, 'results')
@@ -164,6 +170,13 @@ async function main() {
    printComparison(previousRun, scores, COMPARISON_METRICS)
 
    await saveResults(evaluations, scores)
+
+   const thresholds = await loadThresholds(__dirname, 'retrieval')
+   const passed = printGate({
+      regressions: findRegressions(previousRun, scores, COMPARISON_METRICS),
+      thresholdFailures: findThresholdFailures(scores, COMPARISON_METRICS, thresholds)
+   })
+   if (!passed) process.exitCode = 1;
 }
 
 main()
